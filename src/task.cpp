@@ -32,7 +32,7 @@ void Task::run(Task* task)
     task->func();
 
     task->state = State::TERMINATED;
-    SCHED.yield();
+    ThreadContext::yield();
 }
 
 } // namespace coco

@@ -10,7 +10,7 @@
 namespace coco {
 
 class Task {
-    friend class Scheduler;
+    friend class ThreadContext;
 
 public:
     enum class State {

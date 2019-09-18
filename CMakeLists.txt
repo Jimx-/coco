@@ -16,14 +16,18 @@ include_directories(
 )
 
 set(SOURCE_FILES
+    ${TOPDIR}/src/coco.cpp
     ${TOPDIR}/src/scheduler.cpp
     ${TOPDIR}/src/task.cpp
+    ${TOPDIR}/src/thread_context.cpp
 )
             
 set(HEADER_FILES
+    ${TOPDIR}/include/coco/coco.h
     ${TOPDIR}/include/coco/scheduler.h
     ${TOPDIR}/include/coco/stackframe.h
-    ${TOPDIR}/include/coco/task.h  
+    ${TOPDIR}/include/coco/task.h
+    ${TOPDIR}/include/coco/thread_context.h  
 )
 
 set(EXT_SOURCE_FILES )

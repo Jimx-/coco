@@ -1,22 +1,22 @@
 #include <gtest/gtest.h>
 
-#include "coco/scheduler.h"
+#include "coco/coco.h"
 
 TEST(CocoTest, SpawnTasks)
 {
-    SCHED.go([] {
+    coco::go([] {
         for (int i = 0; i < 10; i++) {
             std::cout << "Hello " << i << std::endl;
-            SCHED.yield();
+            coco::yield();
         }
     });
 
-    SCHED.go([] {
+    coco::go([] {
         for (int i = 0; i < 10; i++) {
             std::cout << "world " << i << std::endl;
-            SCHED.yield();
+            coco::yield();
         }
     });
 
-    SCHED.run();
+    coco::run();
 }

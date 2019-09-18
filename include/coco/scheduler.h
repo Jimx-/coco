@@ -2,16 +2,13 @@
 #define _COCO_SCHEDULER_H_
 
 #include "coco/task.h"
-
-#include <queue>
+#include "coco/thread_context.h"
 
 namespace coco {
 
-#define SCHED coco::Scheduler::get_instance()
-
 class Scheduler {
 public:
-    Scheduler();
+    explicit Scheduler(int nr_threads = 1);
 
     static Scheduler& get_instance();
 
@@ -19,17 +16,9 @@ public:
 
     void run();
 
-    void yield();
-
 private:
-    Task idle_task;
-    std::vector<std::unique_ptr<Task>> tasks;
-
-    Task* current_task;
-    std::queue<Task*> run_queue;
-    std::queue<Task*> waiting_queue;
-
-    __attribute__((naked)) Task* switch_to(Task* prev, Task* next);
+    int nr_threads;
+    std::vector<std::unique_ptr<ThreadContext>> threads;
 };
 
 } // namespace coco
