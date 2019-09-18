@@ -2,8 +2,6 @@
 
 #include "coco/scheduler.h"
 
-coco::Scheduler sched;
-
 TEST(CocoTest, SpawnTasks)
 {
     SCHED.go([] {

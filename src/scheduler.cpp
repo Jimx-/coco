@@ -51,10 +51,9 @@ void Scheduler::yield()
 
 Task* Scheduler::switch_to(Task* prev, Task* next)
 {
-    register Task* prev_ret asm("rax") = prev;
-
     current_task = next;
-    __asm__ volatile("mov %%rsp, (%1)\n\t" // save prev stack pointer
+    __asm__ volatile("mov %0, %%rax\n\t"
+                     "mov %%rsp, (%1)\n\t" // save prev stack pointer
                      "mov %1, %%rsp\n\t"
                      "push %%rbx\n\t" // save prev registers
                      "push %%rbp\n\t"
@@ -71,13 +70,12 @@ Task* Scheduler::switch_to(Task* prev, Task* next)
                      "pop %%r12\n\t"
                      "pop %%rbp\n\t"
                      "pop %%rbx\n\t"
-                     "pop %%rsp\n\t" ::"r"(prev),
+                     "pop %%rsp\n\t"
+                     "retq" ::"r"(prev),
                      "r"((uint8_t*)prev->regs + sizeof(StackFrame) -
                          sizeof(reg_t)), // rsp in prev stack frame
                      "r"(next->regs)
-                     : "rdi", "memory");
-
-    return prev_ret;
+                     : "rax", "rdi", "memory");
 }
 
 } // namespace coco

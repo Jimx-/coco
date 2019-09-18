@@ -15,7 +15,7 @@ struct StackFrame {
     reg_t r12;
     reg_t rbp;
     reg_t rbx;
-    /* first argument */
+    /* stack pointer */
     reg_t rsp;
 } __attribute__((packed));
 

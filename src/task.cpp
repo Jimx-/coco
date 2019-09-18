@@ -21,7 +21,7 @@ void Task::init_stack(size_t stacksize)
     *return_address = (reg_t)&Task::run;
 
     /* setup the initial stack pointer */
-    regs->rsp = (reg_t)return_address - sizeof(reg_t); // make room for rbp
+    regs->rsp = (reg_t)return_address;
 
     /* setup this pointer(only works for System V amd64 ABI) */
     regs->rdi = (reg_t)this;

@@ -29,7 +29,7 @@ private:
     std::queue<Task*> run_queue;
     std::queue<Task*> waiting_queue;
 
-    Task* switch_to(Task* prev, Task* next);
+    __attribute__((naked)) Task* switch_to(Task* prev, Task* next);
 };
 
 } // namespace coco
