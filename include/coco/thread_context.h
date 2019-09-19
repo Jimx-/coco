@@ -1,6 +1,8 @@
 #ifndef _COCO_THREAD_CONTEXT_H_
 #define _COCO_THREAD_CONTEXT_H_
 
+#include "coco/spinlock.h"
+
 #include <condition_variable>
 #include <cstddef>
 #include <memory>
@@ -19,9 +21,12 @@ public:
     ThreadContext(Scheduler* parent, Id id);
 
     Id get_tid() const { return tid; }
+    size_t run_queue_size() const { return run_queue.size(); }
     static ThreadContext* get_current_thread();
+    bool is_waiting() const { return waiting; }
 
     void queue_task(std::unique_ptr<Task> task);
+    void notify();
 
     void run();
     void stop() { stopped = true; }
@@ -41,6 +46,7 @@ private:
     std::queue<std::unique_ptr<Task>> run_queue;
     std::queue<std::unique_ptr<Task>> waiting_queue;
     std::queue<std::unique_ptr<Task>> zombie_queue;
+    SpinLock run_queue_lock;
 
     std::mutex cv_mutex;
     std::condition_variable cv;

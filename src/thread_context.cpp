@@ -26,14 +26,20 @@ void ThreadContext::run()
     stopped = false;
     waiting = false;
 
+    run_queue_lock.lock();
+
     if (run_queue.empty()) {
+        run_queue_lock.unlock();
         wait();
 
         if (stopped) return;
+
+        run_queue_lock.lock();
     }
 
     current_task = std::move(run_queue.front());
     run_queue.pop();
+    run_queue_lock.unlock();
 
     switch_to(idle_task.get(), current_task.get());
 }
@@ -48,6 +54,13 @@ void ThreadContext::gc()
 void ThreadContext::queue_task(std::unique_ptr<Task> task)
 {
     run_queue.push(std::move(task));
+}
+
+void ThreadContext::notify()
+{
+    if (waiting) {
+        cv.notify_all();
+    }
 }
 
 void ThreadContext::wait()
@@ -80,9 +93,13 @@ void ThreadContext::yield_current()
 
     Task* next = nullptr;
 
+    run_queue_lock.lock();
+
 retry:
     while (run_queue.empty()) {
+        run_queue_lock.unlock();
         wait();
+        run_queue_lock.lock();
 
         if (stopped) {
             next = idle_task
@@ -99,6 +116,8 @@ retry:
         run_queue.pop();
         next = current_task.get();
     }
+
+    run_queue_lock.unlock();
 
     prev = switch_to(prev, next);
 }
