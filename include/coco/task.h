@@ -21,6 +21,8 @@ public:
 
     Task(std::function<void()>&& func, size_t stacksize);
 
+    void set_state(State state) { this->state = state; }
+
 private:
     State state;
     std::unique_ptr<uint8_t[]> stack;
