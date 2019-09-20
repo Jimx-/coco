@@ -1,6 +1,6 @@
 #include "coco/task.h"
 #include "coco/scheduler.h"
-#include <iostream>
+
 namespace coco {
 
 Task::Task(std::function<void()>&& func, size_t stacksize)
@@ -11,8 +11,8 @@ Task::Task(std::function<void()>&& func, size_t stacksize)
 
 void Task::init_stack(size_t stacksize)
 {
-    stack = std::make_unique<uint8_t[]>(stacksize);
-    auto stacktop = stack.get() + stacksize;
+    stack = std::make_unique<uint8_t[]>(stacksize + STACK_GUARD_SIZE);
+    auto stacktop = stack.get() + stacksize + STACK_GUARD_SIZE;
 
     regs = (StackFrame*)(stacktop - sizeof(StackFrame));
 
@@ -41,6 +41,14 @@ void Task::run(Task* task)
 
     task->state = State::TERMINATED;
     ThreadContext::yield();
+}
+
+bool Task::check_stack_overflow()
+{
+    reg_t sp = regs->rsp - (reg_t)stack.get();
+
+    return !((sp >= STACK_GUARD_SIZE) &&
+             (sp <= STACK_GUARD_SIZE + stacksize - sizeof(StackFrame)));
 }
 
 } // namespace coco

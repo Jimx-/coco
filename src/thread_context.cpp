@@ -96,6 +96,17 @@ void ThreadContext::yield_current()
     Task* prev = current_task.get();
     Task* next = nullptr;
 
+    if (current_task->state != Task::State::TERMINATED) {
+        if (__builtin_expect(current_task->check_stack_overflow(), false)) {
+            /* we are throwing an exception on the coroutine's stack so it will
+             * be catched by Task::run() and cause the coroutine to enter this
+             * function again with terminated state */
+            /* this is actually quite dangerous because the coroutine's stack
+             * has already overflowed */
+            throw std::runtime_error("stack overflow detected in coroutine");
+        }
+    }
+
     switch (current_task->state) {
     case Task::State::RUNNABLE:
         run_queue.push(std::move(current_task));

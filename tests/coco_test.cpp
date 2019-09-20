@@ -40,9 +40,22 @@ TEST(CocoTest, LoadBalance)
     coco::run();
 }
 
-TEST(CocoTest, HandleExcpetion)
+TEST(CocoTest, HandleException)
 {
     coco::go([] { throw std::runtime_error("test"); });
+
+    EXPECT_THROW({ coco::run(); }, std::runtime_error);
+}
+
+void test_stack_overflow()
+{
+    coco::yield();
+    test_stack_overflow();
+}
+
+TEST(CocoTest, DetectStackOverflow)
+{
+    coco::go(test_stack_overflow);
 
     EXPECT_THROW({ coco::run(); }, std::runtime_error);
 }

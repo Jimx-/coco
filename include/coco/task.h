@@ -23,7 +23,10 @@ public:
 
     void set_state(State state) { this->state = state; }
 
+    bool check_stack_overflow();
+
 private:
+    static const size_t STACK_GUARD_SIZE = 0x1000;
     State state;
     std::unique_ptr<uint8_t[]> stack;
     size_t stacksize;
