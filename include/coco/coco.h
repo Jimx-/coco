@@ -6,7 +6,7 @@
 
 namespace coco {
 
-extern void go(std::function<void()>&& fn, size_t stacksize = 0x1000);
+extern void go(std::function<void()>&& fn, size_t stacksize = 1 * 1024 * 1024);
 extern void run();
 extern void yield();
 

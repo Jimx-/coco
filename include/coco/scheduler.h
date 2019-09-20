@@ -14,7 +14,7 @@ public:
 
     static Scheduler& get_instance();
 
-    void go(std::function<void()>&& fn, size_t stacksize = 4096);
+    void go(std::function<void()>&& fn, size_t stacksize);
 
     void run();
     void stop();

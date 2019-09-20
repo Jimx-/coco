@@ -56,6 +56,5 @@ void test_stack_overflow()
 TEST(CocoTest, DetectStackOverflow)
 {
     coco::go(test_stack_overflow);
-
     EXPECT_THROW({ coco::run(); }, std::runtime_error);
 }

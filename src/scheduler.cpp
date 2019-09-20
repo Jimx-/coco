@@ -60,15 +60,16 @@ void Scheduler::run()
     try {
         main_thread->run();
     } catch (...) {
-        this->eptr = std::current_exception();
-        this->stop();
+        eptr = std::current_exception();
+        stop();
     }
 
     for (auto&& t : native_threads) {
         t.join();
     }
 
-    threads.erase(threads.begin() + 1, threads.end());
+    threads.clear();
+    threads.push_back(std::make_unique<ThreadContext>(this, 0));
 
     if (eptr) {
         std::rethrow_exception(eptr);

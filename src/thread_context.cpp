@@ -9,7 +9,7 @@ static thread_local ThreadContext* __current_thread = nullptr;
 }
 
 ThreadContext::ThreadContext(Scheduler* parent, Id id)
-    : parent(parent), tid(id), stopped(true), waiting(false),
+    : parent(parent), tid(id), stopped(false), waiting(false),
       idle_task([] {}, 128), eptr(nullptr)
 {}
 
@@ -22,7 +22,6 @@ void ThreadContext::run()
 {
     detail::__current_thread = this;
 
-    stopped = false;
     waiting = false;
     eptr = nullptr;
 
@@ -43,9 +42,18 @@ void ThreadContext::run()
 
     switch_to(&idle_task, current_task.get());
 
+    detail::__current_thread = nullptr;
+
     if (eptr) {
         std::rethrow_exception(eptr);
     }
+}
+
+void ThreadContext::stop()
+{
+
+    std::lock_guard<std::mutex> lock(cv_mutex);
+    stopped = true;
 }
 
 void ThreadContext::gc()
@@ -96,32 +104,10 @@ void ThreadContext::yield_current()
     Task* prev = current_task.get();
     Task* next = nullptr;
 
-    if (current_task->state != Task::State::TERMINATED) {
-        if (__builtin_expect(current_task->check_stack_overflow(), false)) {
-            /* we are throwing an exception on the coroutine's stack so it will
-             * be catched by Task::run() and cause the coroutine to enter this
-             * function again with terminated state */
-            /* this is actually quite dangerous because the coroutine's stack
-             * has already overflowed */
-            throw std::runtime_error("stack overflow detected in coroutine");
-        }
-    }
-
-    switch (current_task->state) {
-    case Task::State::RUNNABLE:
-        run_queue.push(std::move(current_task));
-        break;
-    case Task::State::SLEEPING:
-        waiting_queue.push(std::move(current_task));
-        break;
-    case Task::State::TERMINATED:
-        if (current_task->eptr) {
-            eptr = current_task->eptr;
-            stop();
-        }
-
-        zombie_queue.push(std::move(current_task));
-        break;
+    if (current_task->state == Task::State::TERMINATED &&
+        current_task->eptr != nullptr) {
+        eptr = current_task->eptr;
+        stopped = true;
     }
 
     if (stopped) {
@@ -134,6 +120,11 @@ void ThreadContext::yield_current()
 
     retry:
         while (run_queue.empty()) {
+            if (current_task->state == Task::State::RUNNABLE) {
+                next = current_task.get();
+                break;
+            }
+
             run_queue_lock.unlock();
             wait();
             run_queue_lock.lock();
@@ -147,6 +138,23 @@ void ThreadContext::yield_current()
         if (!next) {
             if (run_queue.empty()) goto retry;
 
+            /* return the current task to the proper queue */
+            /* this can only be done here because we are still running in
+             * current task's context so we have to make sure the current task
+             * is not released before we are ready to switch to the next task's
+             * context */
+            switch (current_task->state) {
+            case Task::State::RUNNABLE:
+                run_queue.push(std::move(current_task));
+                break;
+            case Task::State::SLEEPING:
+                waiting_queue.push(std::move(current_task));
+                break;
+            case Task::State::TERMINATED:
+                zombie_queue.push(std::move(current_task));
+                break;
+            }
+
             current_task = std::move(run_queue.front());
             run_queue.pop();
             next = current_task.get();
@@ -156,6 +164,15 @@ void ThreadContext::yield_current()
     }
 
     prev = switch_to(prev, next);
+
+    if (prev->state != Task::State::TERMINATED) {
+        if (__builtin_expect(prev->check_stack_overflow(), false)) {
+            /* we are throwing an exception on the next task's stack so it will
+             * be catched by Task::run() and cause the next task to enter this
+             * function again with terminated state */
+            throw std::runtime_error("stack overflow detected in coroutine");
+        }
+    }
 }
 
 Task* ThreadContext::switch_to(Task* prev, Task* next)

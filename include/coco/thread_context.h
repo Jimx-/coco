@@ -31,11 +31,8 @@ public:
     void notify();
 
     void run();
-    void stop()
-    {
-        std::lock_guard<std::mutex> lock(cv_mutex);
-        stopped = true;
-    }
+    void stop();
+
     void gc();
 
     static void yield();
