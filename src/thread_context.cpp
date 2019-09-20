@@ -56,6 +56,17 @@ void ThreadContext::queue_task(std::unique_ptr<Task> task)
     run_queue.push(std::move(task));
 }
 
+void ThreadContext::steal_tasks(size_t n,
+                                std::vector<std::unique_ptr<Task>>& tasks)
+{
+    run_queue_lock.lock();
+    while (!run_queue.empty() && tasks.size() < n) {
+        tasks.emplace_back(std::move(run_queue.front()));
+        run_queue.pop();
+    }
+    run_queue_lock.unlock();
+}
+
 void ThreadContext::notify()
 {
     if (waiting) {

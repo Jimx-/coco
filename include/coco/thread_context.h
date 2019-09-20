@@ -26,6 +26,7 @@ public:
     bool is_waiting() const { return waiting; }
 
     void queue_task(std::unique_ptr<Task> task);
+    void steal_tasks(size_t n, std::vector<std::unique_ptr<Task>>& tasks);
     void notify();
 
     void run();

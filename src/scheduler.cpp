@@ -55,6 +55,8 @@ void Scheduler::run()
     for (auto&& t : native_threads) {
         t.join();
     }
+
+    threads.erase(threads.begin() + 1, threads.end());
 }
 
 void Scheduler::stop()
@@ -96,8 +98,41 @@ void Scheduler::monitor_thread_func()
             break;
         }
 
+        /* steal tasks from threads with heavier load */
         if (!load_map.begin()->first) {
             auto waiting_range = load_map.equal_range(0);
+            waiting_count =
+                std::distance(waiting_range.first, waiting_range.second);
+
+            auto it = load_map.rbegin();
+            while (it != load_map.rend() && it->first > avg_load) {
+                size_t n = it->first - avg_load;
+                std::vector<std::unique_ptr<Task>> tasks;
+                it->second->steal_tasks(n, tasks);
+
+                size_t avg_tasks =
+                    tasks.size() /
+                    std::distance(waiting_range.first, waiting_range.second);
+                if (!avg_tasks) avg_tasks = 1;
+
+                auto tp = tasks.begin();
+                for (auto p = waiting_range.first; p != waiting_range.second;
+                     p++) {
+                    size_t np = std::distance(tp, tasks.end());
+                    if (np > avg_tasks) np = avg_tasks;
+                    if (!np) break;
+
+                    while (np--) {
+                        p->second->queue_task(std::move(*tp++));
+                    }
+                }
+
+                it++;
+            }
+
+            for (auto p = waiting_range.first; p != waiting_range.second; p++) {
+                if (p->second->run_queue_size()) p->second->notify();
+            }
         }
     }
 }
