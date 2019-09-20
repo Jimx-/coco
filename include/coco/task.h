@@ -29,6 +29,7 @@ private:
     size_t stacksize;
     StackFrame* regs;
     std::function<void()> func;
+    std::exception_ptr eptr;
 
     void init_stack(size_t stacksize);
     static void run(Task* task);

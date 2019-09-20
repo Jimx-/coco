@@ -23,6 +23,7 @@ private:
     int nr_threads;
     uint64_t monitor_tick_us;
     bool stopped;
+    std::exception_ptr eptr;
     std::vector<std::unique_ptr<ThreadContext>> threads;
 
     void monitor_thread_func();

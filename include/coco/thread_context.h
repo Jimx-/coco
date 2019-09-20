@@ -2,6 +2,7 @@
 #define _COCO_THREAD_CONTEXT_H_
 
 #include "coco/spinlock.h"
+#include "coco/task.h"
 
 #include <condition_variable>
 #include <cstddef>
@@ -30,7 +31,11 @@ public:
     void notify();
 
     void run();
-    void stop() { stopped = true; }
+    void stop()
+    {
+        std::lock_guard<std::mutex> lock(cv_mutex);
+        stopped = true;
+    }
     void gc();
 
     static void yield();
@@ -40,8 +45,9 @@ private:
     Id tid;
     bool stopped;
     bool waiting;
+    std::exception_ptr eptr;
 
-    std::unique_ptr<Task> idle_task;
+    Task idle_task;
 
     std::unique_ptr<Task> current_task;
     std::queue<std::unique_ptr<Task>> run_queue;

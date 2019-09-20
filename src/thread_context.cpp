@@ -9,10 +9,9 @@ static thread_local ThreadContext* __current_thread = nullptr;
 }
 
 ThreadContext::ThreadContext(Scheduler* parent, Id id)
-    : parent(parent), tid(id), stopped(true), waiting(false)
-{
-    idle_task = std::make_unique<Task>([] {}, 128);
-}
+    : parent(parent), tid(id), stopped(true), waiting(false),
+      idle_task([] {}, 128), eptr(nullptr)
+{}
 
 ThreadContext* ThreadContext::get_current_thread()
 {
@@ -25,6 +24,7 @@ void ThreadContext::run()
 
     stopped = false;
     waiting = false;
+    eptr = nullptr;
 
     run_queue_lock.lock();
 
@@ -41,7 +41,11 @@ void ThreadContext::run()
     run_queue.pop();
     run_queue_lock.unlock();
 
-    switch_to(idle_task.get(), current_task.get());
+    switch_to(&idle_task, current_task.get());
+
+    if (eptr) {
+        std::rethrow_exception(eptr);
+    }
 }
 
 void ThreadContext::gc()
@@ -79,6 +83,7 @@ void ThreadContext::wait()
     gc();
 
     std::unique_lock<std::mutex> lock(cv_mutex);
+    if (stopped) return;
     waiting = true;
     cv.wait(lock);
     waiting = false;
@@ -89,6 +94,7 @@ void ThreadContext::yield() { get_current_thread()->yield_current(); }
 void ThreadContext::yield_current()
 {
     Task* prev = current_task.get();
+    Task* next = nullptr;
 
     switch (current_task->state) {
     case Task::State::RUNNABLE:
@@ -98,37 +104,45 @@ void ThreadContext::yield_current()
         waiting_queue.push(std::move(current_task));
         break;
     case Task::State::TERMINATED:
+        if (current_task->eptr) {
+            eptr = current_task->eptr;
+            stop();
+        }
+
         zombie_queue.push(std::move(current_task));
         break;
     }
 
-    Task* next = nullptr;
-
-    run_queue_lock.lock();
-
-retry:
-    while (run_queue.empty()) {
-        run_queue_lock.unlock();
-        wait();
-        run_queue_lock.lock();
-
-        if (stopped) {
-            next = idle_task
-                       .get(); // this will send us back to the place where
-                               // this->run() is called and continue from there
-            break;
-        }
+    if (stopped) {
+        next = &idle_task; // this will send us back to the place where
+                           // this->run() is called and continue from there
     }
 
     if (!next) {
-        if (run_queue.empty()) goto retry;
+        run_queue_lock.lock();
 
-        current_task = std::move(run_queue.front());
-        run_queue.pop();
-        next = current_task.get();
+    retry:
+        while (run_queue.empty()) {
+            run_queue_lock.unlock();
+            wait();
+            run_queue_lock.lock();
+
+            if (stopped) {
+                next = &idle_task;
+                break;
+            }
+        }
+
+        if (!next) {
+            if (run_queue.empty()) goto retry;
+
+            current_task = std::move(run_queue.front());
+            run_queue.pop();
+            next = current_task.get();
+        }
+
+        run_queue_lock.unlock();
     }
-
-    run_queue_lock.unlock();
 
     prev = switch_to(prev, next);
 }

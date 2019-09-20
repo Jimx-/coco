@@ -6,7 +6,8 @@
 namespace coco {
 
 Scheduler::Scheduler(int nr_threads, uint64_t monitor_tick_us)
-    : nr_threads(nr_threads), monitor_tick_us(monitor_tick_us), stopped(true)
+    : nr_threads(nr_threads), monitor_tick_us(monitor_tick_us), stopped(true),
+      eptr(nullptr)
 {
     threads.push_back(std::make_unique<ThreadContext>(this, 0));
 }
@@ -36,27 +37,42 @@ void Scheduler::run()
     std::vector<std::thread> native_threads;
 
     stopped = false;
+    eptr = nullptr;
 
     for (int i = 1; i < nr_threads; i++) {
         ThreadContext::Id tid = threads.size();
         threads.push_back(std::make_unique<ThreadContext>(this, tid));
 
         auto* thread = threads.back().get();
-        native_threads.emplace_back([thread] { thread->run(); });
+        native_threads.emplace_back([this, thread] {
+            try {
+                thread->run();
+            } catch (...) {
+                this->eptr = std::current_exception();
+                this->stop();
+            }
+        });
     }
 
-    if (nr_threads > 1) {
-        native_threads.emplace_back(
-            std::bind(&Scheduler::monitor_thread_func, this));
-    }
+    native_threads.emplace_back(
+        std::bind(&Scheduler::monitor_thread_func, this));
 
-    main_thread->run();
+    try {
+        main_thread->run();
+    } catch (...) {
+        this->eptr = std::current_exception();
+        this->stop();
+    }
 
     for (auto&& t : native_threads) {
         t.join();
     }
 
     threads.erase(threads.begin() + 1, threads.end());
+
+    if (eptr) {
+        std::rethrow_exception(eptr);
+    }
 }
 
 void Scheduler::stop()

@@ -24,7 +24,7 @@ TEST(CocoTest, SpawnTasks)
 
 TEST(CocoTest, LoadBalance)
 {
-    for (int j = 0; j < 100; j++)
+    for (int j = 0; j < 10; j++)
         coco::go(
             [j] {
                 for (int i = 0; i < 10; i++) {
@@ -38,4 +38,11 @@ TEST(CocoTest, LoadBalance)
             });
 
     coco::run();
+}
+
+TEST(CocoTest, HandleExcpetion)
+{
+    coco::go([] { throw std::runtime_error("test"); });
+
+    EXPECT_THROW({ coco::run(); }, std::runtime_error);
 }
