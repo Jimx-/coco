@@ -93,14 +93,22 @@ void Scheduler::monitor_thread_func()
 
         std::multimap<size_t, ThreadContext*> load_map;
         size_t total_load = 0;
-        size_t waiting_count = 0;
+        size_t empty_count = 0;
         for (auto&& p : threads) {
             total_load += p->run_queue_size();
             load_map.emplace(p->run_queue_size(), p.get());
 
             if (p->is_waiting()) {
-                waiting_count++;
-                if (p->run_queue_size() > 0) {
+                if (p->empty()) {
+                    empty_count++;
+                    continue;
+                }
+
+                if (!p->run_queue_size()) {
+                    p->poll_io();
+                }
+
+                if (p->has_runnable()) {
                     /* wake up waiting threads with tasks to run */
                     p->notify();
                 }
@@ -109,7 +117,7 @@ void Scheduler::monitor_thread_func()
 
         size_t avg_load = total_load / threads.size();
 
-        if (total_load == 0 && waiting_count == threads.size()) {
+        if (empty_count == threads.size()) {
             /* no more task to be done */
             stop();
             break;
@@ -118,7 +126,7 @@ void Scheduler::monitor_thread_func()
         /* steal tasks from threads with heavier load */
         if (!load_map.begin()->first) {
             auto waiting_range = load_map.equal_range(0);
-            waiting_count =
+            size_t waiting_count =
                 std::distance(waiting_range.first, waiting_range.second);
 
             auto it = load_map.rbegin();

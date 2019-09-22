@@ -10,12 +10,24 @@ static thread_local ThreadContext* __current_thread = nullptr;
 
 ThreadContext::ThreadContext(Scheduler* parent, Id id)
     : parent(parent), tid(id), stopped(false), waiting(false),
-      idle_task([] {}, 128), eptr(nullptr)
+      idle_task([] {}, 128), eptr(nullptr), io_poller(this)
 {}
 
 ThreadContext* ThreadContext::get_current_thread()
 {
     return detail::__current_thread;
+}
+
+Task* ThreadContext::get_current_task()
+{
+    auto tc = get_current_thread();
+    return tc ? tc->current_task.get() : nullptr;
+}
+
+IOPoller* ThreadContext::get_current_io_poller()
+{
+    auto tc = get_current_thread();
+    return tc ? tc->get_io_poller() : nullptr;
 }
 
 void ThreadContext::run()
@@ -86,6 +98,8 @@ void ThreadContext::notify()
     }
 }
 
+void ThreadContext::poll_io() { io_poller.poll(); }
+
 void ThreadContext::wait()
 {
     gc();
@@ -98,6 +112,7 @@ void ThreadContext::wait()
 }
 
 void ThreadContext::yield() { get_current_thread()->yield_current(); }
+void ThreadContext::sleep() { get_current_thread()->sleep_current(); }
 
 void ThreadContext::yield_current()
 {
@@ -125,9 +140,13 @@ void ThreadContext::yield_current()
                 break;
             }
 
-            run_queue_lock.unlock();
-            wait();
-            run_queue_lock.lock();
+            io_poller.poll();
+
+            if (!has_runnable()) {
+                run_queue_lock.unlock();
+                wait();
+                run_queue_lock.lock();
+            }
 
             if (stopped) {
                 next = &idle_task;
@@ -148,7 +167,7 @@ void ThreadContext::yield_current()
                 run_queue.push(std::move(current_task));
                 break;
             case Task::State::SLEEPING:
-                waiting_queue.push(std::move(current_task));
+                waiting_queue.push_back(std::move(current_task));
                 break;
             case Task::State::TERMINATED:
                 zombie_queue.push(std::move(current_task));
@@ -171,6 +190,30 @@ void ThreadContext::yield_current()
              * be catched by Task::run() and cause the next task to enter this
              * function again with terminated state */
             throw std::runtime_error("stack overflow detected in coroutine");
+        }
+    }
+}
+
+void ThreadContext::sleep_current()
+{
+    current_task->state = Task::State::SLEEPING;
+    yield_current();
+}
+
+void ThreadContext::wake_up(Task* task)
+{
+    /* this is only called by own thread or the monitor thread(when own thread
+     * is waiting) so there is no need to acquire any lock */
+    if (task == current_task.get()) {
+        current_task->state = Task::State::RUNNABLE;
+    } else {
+        for (auto it = waiting_queue.begin(); it != waiting_queue.end(); it++) {
+            if (it->get() == task) {
+                (*it)->state = Task::State::RUNNABLE;
+                run_queue.push(std::move(*it));
+                waiting_queue.erase(it);
+                break;
+            }
         }
     }
 }

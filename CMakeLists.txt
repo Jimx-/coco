@@ -17,14 +17,20 @@ include_directories(
 
 set(SOURCE_FILES
     ${TOPDIR}/src/coco.cpp
+    ${TOPDIR}/src/io_context.cpp
+    ${TOPDIR}/src/io_poller.cpp
     ${TOPDIR}/src/scheduler.cpp
+    ${TOPDIR}/src/syscalls.cpp
     ${TOPDIR}/src/task.cpp
     ${TOPDIR}/src/thread_context.cpp
 )
             
 set(HEADER_FILES
     ${TOPDIR}/include/coco/coco.h
+    ${TOPDIR}/include/coco/io_context.h
+    ${TOPDIR}/include/coco/io_poller.h        
     ${TOPDIR}/include/coco/scheduler.h
+    ${TOPDIR}/include/coco/syscalls.h
     ${TOPDIR}/include/coco/stackframe.h
     ${TOPDIR}/include/coco/task.h
     ${TOPDIR}/include/coco/thread_context.h  
@@ -34,6 +40,7 @@ set(EXT_SOURCE_FILES )
 
 set(LIBRARIES
     pthread
+    dl
 )
  
 add_library(coco STATIC ${SOURCE_FILES} ${HEADER_FILES} ${EXT_SOURCE_FILES})

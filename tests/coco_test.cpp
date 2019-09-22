@@ -1,3 +1,4 @@
+#include <fcntl.h>
 #include <gtest/gtest.h>
 #include <unistd.h>
 
@@ -57,4 +58,27 @@ TEST(CocoTest, DetectStackOverflow)
 {
     coco::go(test_stack_overflow);
     EXPECT_THROW({ coco::run(); }, std::runtime_error);
+}
+
+TEST(CocoTest, HandleIO)
+{
+    int fds[2];
+    ASSERT_EQ(pipe(fds), 0);
+
+    std::string result;
+    coco::go([fds, &result] {
+        char buf[10];
+        read(fds[0], buf, 9);
+        result = std::string(buf);
+    });
+
+    coco::go([fds] {
+        sleep(1);
+        char buf[] = "test";
+        int n = write(fds[1], buf, 4);
+    });
+
+    coco::run();
+
+    ASSERT_EQ(result, "test");
 }
