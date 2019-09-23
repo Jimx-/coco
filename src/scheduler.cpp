@@ -9,7 +9,7 @@ Scheduler::Scheduler(int nr_threads, uint64_t monitor_tick_us)
     : nr_threads(nr_threads), monitor_tick_us(monitor_tick_us), stopped(true),
       eptr(nullptr)
 {
-    threads.push_back(std::make_unique<ThreadContext>(this, 0));
+    threads.push_back(std::make_unique<ThreadContext>(this, 1));
 }
 
 Scheduler& Scheduler::get_instance()
@@ -40,7 +40,7 @@ void Scheduler::run()
     eptr = nullptr;
 
     for (int i = 1; i < nr_threads; i++) {
-        ThreadContext::Id tid = threads.size();
+        ThreadContext::Id tid = threads.size() + 1;
         threads.push_back(std::make_unique<ThreadContext>(this, tid));
 
         auto* thread = threads.back().get();
@@ -69,7 +69,7 @@ void Scheduler::run()
     }
 
     threads.clear();
-    threads.push_back(std::make_unique<ThreadContext>(this, 0));
+    threads.push_back(std::make_unique<ThreadContext>(this, 1));
 
     if (eptr) {
         std::rethrow_exception(eptr);
@@ -136,9 +136,9 @@ void Scheduler::monitor_thread_func()
                 it->second->steal_tasks(n, tasks);
 
                 size_t avg_tasks =
-                    tasks.size() /
-                    std::distance(waiting_range.first, waiting_range.second);
-                if (!avg_tasks) avg_tasks = 1;
+                    tasks.size() / std::distance(waiting_range.first,
+                                                 waiting_range.second) +
+                    1;
 
                 auto tp = tasks.begin();
                 for (auto p = waiting_range.first; p != waiting_range.second;

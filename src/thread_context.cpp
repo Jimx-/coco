@@ -83,12 +83,11 @@ void ThreadContext::queue_task(std::unique_ptr<Task> task)
 void ThreadContext::steal_tasks(size_t n,
                                 std::vector<std::unique_ptr<Task>>& tasks)
 {
-    run_queue_lock.lock();
+    std::lock_guard<SpinLock> lock(run_queue_lock);
     while (!run_queue.empty() && tasks.size() < n) {
         tasks.emplace_back(std::move(run_queue.front()));
         run_queue.pop();
     }
-    run_queue_lock.unlock();
 }
 
 void ThreadContext::notify()
@@ -112,7 +111,8 @@ void ThreadContext::wait()
 }
 
 void ThreadContext::yield() { get_current_thread()->yield_current(); }
-void ThreadContext::sleep() { get_current_thread()->sleep_current(); }
+void ThreadContext::sleep() { get_current_thread()->sleep_current(true); }
+void ThreadContext::set_sleep() { get_current_thread()->sleep_current(false); }
 
 void ThreadContext::yield_current()
 {
@@ -140,13 +140,14 @@ void ThreadContext::yield_current()
                 break;
             }
 
-            io_poller.poll();
+            run_queue_lock.unlock();
 
+            io_poller.poll();
             if (!has_runnable()) {
-                run_queue_lock.unlock();
                 wait();
-                run_queue_lock.lock();
             }
+
+            run_queue_lock.lock();
 
             if (stopped) {
                 next = &idle_task;
@@ -194,27 +195,33 @@ void ThreadContext::yield_current()
     }
 }
 
-void ThreadContext::sleep_current()
+void ThreadContext::sleep_current(bool yield_now)
 {
     current_task->state = Task::State::SLEEPING;
-    yield_current();
+    if (yield_now) yield_current();
 }
 
 void ThreadContext::wake_up(Task* task)
 {
-    /* this is only called by own thread or the monitor thread(when own thread
-     * is waiting) so there is no need to acquire any lock */
-    if (task == current_task.get()) {
-        current_task->state = Task::State::RUNNABLE;
-    } else {
-        for (auto it = waiting_queue.begin(); it != waiting_queue.end(); it++) {
-            if (it->get() == task) {
-                (*it)->state = Task::State::RUNNABLE;
-                run_queue.push(std::move(*it));
-                waiting_queue.erase(it);
-                break;
+    {
+        std::lock_guard<SpinLock> lock(run_queue_lock);
+        if (task == current_task.get()) {
+            current_task->state = Task::State::RUNNABLE;
+        } else {
+            for (auto it = waiting_queue.begin(); it != waiting_queue.end();
+                 it++) {
+                if (it->get() == task) {
+                    (*it)->state = Task::State::RUNNABLE;
+                    run_queue.push(std::move(*it));
+                    waiting_queue.erase(it);
+                    break;
+                }
             }
         }
+    }
+
+    if (this != get_current_thread()) {
+        notify();
     }
 }
 

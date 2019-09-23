@@ -20,6 +20,9 @@ set(SOURCE_FILES
     ${TOPDIR}/src/io_context.cpp
     ${TOPDIR}/src/io_poller.cpp
     ${TOPDIR}/src/scheduler.cpp
+    ${TOPDIR}/src/sync/condition_variable.cpp
+    ${TOPDIR}/src/sync/mutex.cpp
+    ${TOPDIR}/src/sync/shared_mutex.cpp        
     ${TOPDIR}/src/syscalls.cpp
     ${TOPDIR}/src/task.cpp
     ${TOPDIR}/src/thread_context.cpp
@@ -30,10 +33,15 @@ set(HEADER_FILES
     ${TOPDIR}/include/coco/io_context.h
     ${TOPDIR}/include/coco/io_poller.h        
     ${TOPDIR}/include/coco/scheduler.h
-    ${TOPDIR}/include/coco/syscalls.h
     ${TOPDIR}/include/coco/stackframe.h
+    ${TOPDIR}/include/coco/sync/condition_variable.h
+    ${TOPDIR}/include/coco/sync/mutex.h
+    ${TOPDIR}/include/coco/sync/shared_mutex.h                
+    ${TOPDIR}/include/coco/sync/spinlock.h
+    ${TOPDIR}/include/coco/sync.h    
+    ${TOPDIR}/include/coco/syscalls.h
     ${TOPDIR}/include/coco/task.h
-    ${TOPDIR}/include/coco/thread_context.h  
+    ${TOPDIR}/include/coco/thread_context.h
 )
 
 set(EXT_SOURCE_FILES )

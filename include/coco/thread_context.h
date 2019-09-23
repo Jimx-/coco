@@ -3,7 +3,7 @@
 
 #include "coco/io_context.h"
 #include "coco/io_poller.h"
-#include "coco/spinlock.h"
+#include "coco/sync/spinlock.h"
 #include "coco/task.h"
 
 #include <condition_variable>
@@ -20,6 +20,7 @@ class Task;
 class ThreadContext {
 public:
     using Id = size_t;
+    static const Id NO_THREAD_ID = 0;
 
     ThreadContext(Scheduler* parent, Id id);
 
@@ -57,6 +58,7 @@ public:
 
     static void yield();
     static void sleep();
+    static void set_sleep();
 
     void wake_up(Task* task);
 
@@ -83,7 +85,7 @@ private:
     void wait();
 
     void yield_current();
-    void sleep_current();
+    void sleep_current(bool yield_now);
     __attribute__((naked)) Task* switch_to(Task* prev, Task* next);
 };
 

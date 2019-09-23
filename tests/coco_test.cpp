@@ -3,6 +3,7 @@
 #include <unistd.h>
 
 #include "coco/coco.h"
+#include "coco/sync.h"
 
 TEST(CocoTest, SpawnTasks)
 {
@@ -81,4 +82,85 @@ TEST(CocoTest, HandleIO)
     coco::run();
 
     ASSERT_EQ(result, "test");
+}
+
+TEST(CocoTest, ConditionmVariable)
+{
+    coco::ConditionVariableAny cv;
+    coco::SpinLock spl;
+    int a = 0, b = 0;
+
+    coco::go([&cv, &spl, &a, &b] {
+        spl.lock();
+
+        while (a == 0)
+            cv.wait(spl);
+
+        b = a;
+        spl.unlock();
+    });
+
+    coco::go([&cv, &spl, &a] {
+        sleep(1);
+
+        spl.lock();
+        a = 1;
+        cv.notify_all();
+        spl.unlock();
+    });
+
+    coco::run();
+
+    ASSERT_EQ(b, 1);
+}
+
+TEST(CocoTest, Mutex)
+{
+    coco::Mutex mutex;
+    int a = 0;
+
+    for (int i = 0; i < 100; i++) {
+        coco::go([&mutex, &a] {
+            usleep(1000); // wait for load balancer to distribute the tasks to
+                          // different threads
+
+            std::lock_guard<coco::Mutex> lock(mutex);
+            a++;
+        });
+    }
+
+    coco::run();
+
+    ASSERT_EQ(a, 100);
+}
+
+TEST(CocoTest, SharedMutex)
+{
+    coco::SharedMutex mutex;
+    int a = 0;
+
+    coco::go([&mutex] {
+        for (int i = 0; i < 100; i++) {
+            usleep(1000);
+            mutex.lock_shared();
+        }
+
+        for (int i = 0; i < 100; i++) {
+            mutex.unlock_shared();
+        }
+    });
+
+    for (int i = 0; i < 100; i++) {
+        coco::go([&mutex, &a] {
+            usleep(1000); // wait for load balancer to distribute the tasks to
+                          // different threads
+
+            std::unique_lock<coco::SharedMutex> lock(mutex);
+            a++;
+        });
+    }
+
+    coco::run();
+
+    ASSERT_EQ(a, 100);
 }
